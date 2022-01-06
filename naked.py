@@ -21,7 +21,6 @@ logging.config.dictConfig(log_config)
 logger = logging.getLogger('root')
 
 
-
 logger.info('Asteroid processing service')
 
 
@@ -44,7 +43,7 @@ try:
 except:
 	logger.exception('')
 print('DONE')
-
+#define function for connecting DB
 def init_db():
 	global connection
 	connection = mysql.connector.connect(host=mysql_config_mysql_host, database=mysql_config_mysql_db, user=mysql_config_mysql_user, password=mysql_config_mysql_pass)
@@ -75,7 +74,7 @@ def mysql_check_if_ast_exists_in_db(request_day, ast_id):
 		pass
 	return records[0][0]
 
-# Asteroid value insert
+# Asteroid value insert in db
 def mysql_insert_ast_into_db(create_date, hazardous, name, url, diam_min, diam_max, ts, dt_utc, dt_local, speed, distance, ast_id):
 	cursor = get_cursor()
 	try:
@@ -131,58 +130,65 @@ if __name__ == "__main__":
 	logger.debug("Response status code: " + str(r.status_code))
 	logger.debug("Response headers: " + str(r.headers))
 	logger.debug("Response content: " + str(r.text))
-	#check if request is successful and continue
+
+	#if request is successful and continue
 	if r.status_code == 200:
 
+		#parsing respons as json structure
 		json_data = json.loads(r.text)
 
+		#init arrays for safe and hazardous asteroids
 		ast_safe = []
 		ast_hazardous = []
-	#request element_count
+
+
 		if 'element_count' in json_data:
 			ast_count = int(json_data['element_count'])
 			logger.info("Asteroid count today: " + str(ast_count))
-	#if elements exists, request and set data for each of them
+			#if elements exists, request and set data for each of them
 			if ast_count > 0:
 				for val in json_data['near_earth_objects'][request_date]:
 					if 'name' and 'nasa_jpl_url' and 'estimated_diameter' and 'is_potentially_hazardous_asteroid' and 'close_approach_data' in val:
+						#name
 						tmp_ast_name = val['name']
+						#Url for asteroid description
 						tmp_ast_nasa_jpl_url = val['nasa_jpl_url']
-						# Getting id of asteroid
+						# id of asteroid
 						tmp_ast_id = val['id']
+						#diameter
 						if 'kilometers' in val['estimated_diameter']:
-	#round diameter size in km to 3 places behind komma
+							#round diameter size in km to 3 places behind komma
 							if 'estimated_diameter_min' and 'estimated_diameter_max' in val['estimated_diameter']['kilometers']:
 								tmp_ast_diam_min = round(val['estimated_diameter']['kilometers']['estimated_diameter_min'], 3)
 								tmp_ast_diam_max = round(val['estimated_diameter']['kilometers']['estimated_diameter_max'], 3)
-	#if diameter is less then meter
+							#if diameter is less then meter
 							else:
 								tmp_ast_diam_min = -2
 								tmp_ast_diam_max = -2
-	#if there is no data about est.diameter
+						#if there is no data about est.diameter
 						else:
 							tmp_ast_diam_min = -1
 							tmp_ast_diam_max = -1
-	#get info about hazardousness
+						#get info about hazardousness
 						tmp_ast_hazardous = val['is_potentially_hazardous_asteroid']
-	#get close aproach data
+						#get close aproach data
 						if len(val['close_approach_data']) > 0:
-	#set
+							#set
 							if 'epoch_date_close_approach' and 'relative_velocity' and 'miss_distance' in val['close_approach_data'][0]:
 								tmp_ast_close_appr_ts = int(val['close_approach_data'][0]['epoch_date_close_approach']/1000)
 								tmp_ast_close_appr_dt_utc = datetime.utcfromtimestamp(tmp_ast_close_appr_ts).strftime('%Y-%m-%d %H:%M:%S')
 								tmp_ast_close_appr_dt = datetime.fromtimestamp(tmp_ast_close_appr_ts).strftime('%Y-%m-%d %H:%M:%S')
-	#gets info about speed
+								#gets info about speed
 								if 'kilometers_per_hour' in val['close_approach_data'][0]['relative_velocity']:
 									tmp_ast_speed = int(float(val['close_approach_data'][0]['relative_velocity']['kilometers_per_hour']))
 								else:
 									tmp_ast_speed = -1
-	#get gets info about distance from Earth
+								#get gets info about distance from Earth
 								if 'kilometers' in val['close_approach_data'][0]['miss_distance']:
 									tmp_ast_miss_dist = round(float(val['close_approach_data'][0]['miss_distance']['kilometers']), 3)
 								else:
 									tmp_ast_miss_dist = -1
-	#set data if no info about date
+							#set data if no info about date
 							else:
 								tmp_ast_close_appr_ts = -1
 								tmp_ast_close_appr_dt_utc = "1969-12-31 23:59:59"
@@ -194,8 +200,8 @@ if __name__ == "__main__":
 							tmp_ast_close_appr_dt = "1970-01-01 00:00:00"
 							tmp_ast_speed = -1
 							tmp_ast_miss_dist = -1
-	#dispalying previous gathered info
 
+						#dispalying previous gathered info
 						logger.info("------------------------------------------------------- >>")
 						logger.info("Asteroid name: " + str(tmp_ast_name) + " | INFO: " + str(tmp_ast_nasa_jpl_url) + " | Diameter: " + str(tmp_ast_diam_min) + " - " + str(tmp_ast_diam_max) + " km | Hazardous: " + str(tmp_ast_hazardous))
 						logger.info("Close approach TS: " + str(tmp_ast_close_appr_ts) + " | Date/time UTC TZ: " + str(tmp_ast_close_appr_dt_utc) + " | Local TZ: " + str(tmp_ast_close_appr_dt))
@@ -211,21 +217,21 @@ if __name__ == "__main__":
 				logger.info("No asteroids are going to hit earth today")
 
 		logger.info("Hazardous asteorids: " + str(len(ast_hazardous)) + " | Safe asteroids: " + str(len(ast_safe)))
-	#getting info about hazard asteroids
+
 		if len(ast_hazardous) > 0:
-	#sorting thise asteroids
+			#sorting thise asteroids by time
 			ast_hazardous.sort(key = lambda x: x[4], reverse=False)
 
 			logger.info("Today's possible apocalypse (asteroid impact on earth) times:")
-	#getting info about ech of them
+			#getting info about ech of them
 			for asteroid in ast_hazardous:
 				logger.info(str(asteroid[6]) + " " + str(asteroid[0]) + " " + " | more info: " + str(asteroid[1]))
-
+			#sorting arrays by passing distance
 			ast_hazardous.sort(key = lambda x: x[8], reverse=False)
 			logger.info("Closest passing distance is for: " + str(ast_hazardous[0][0]) + " at: " + str(int(ast_hazardous[0][8])) + " km | more info: " + str(ast_hazardous[0][1]))
 		else:
 			logger.info("No asteroids close passing earth today")
-
+		#insert into db
 		push_asteroids_arrays_to_db(request_date, ast_hazardous, 1)
 		push_asteroids_arrays_to_db(request_date, ast_safe, 0)
 
